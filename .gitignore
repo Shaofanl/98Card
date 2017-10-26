@@ -1,0 +1,6 @@
+# virtual env
+env/
+
+*.pyc
+*.swp
+*.log
