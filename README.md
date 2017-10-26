@@ -2,12 +2,12 @@ Playing 98 Cards with Deep Reinforcement Learning
 =================================================
 
 
-0. Motivation
--------------
+Motivation
+----------
 I want to start to code Deep Reinforcement Learning (DRL) models with [Tensorflow](https://www.tensorflow.org/) and I need a fun task to begin with. 
 
-1. 98 Cards
------------
+98 Cards
+--------
 [98 Cards](https://play.google.com/store/apps/details?id=com.vdh.ninetyeight.android&hl=en) is an Android game that needs strategy.
 
 > Your deck contains 98 cards ranging from 2 to 99.
@@ -18,6 +18,6 @@ I want to start to code Deep Reinforcement Learning (DRL) models with [Tensorflo
 
 So the goal of this game is to collect as much score as possible. When everytime a player piles a card, a score will be given. But I fail to figure how how they assign the score. Therefore, I just assgin one point to each successful placement and the goal is to pile as many cards as possible.
 
-2. File Structures
-------------------
+File Structures
+---------------
 - env.py: the game simulator.
