@@ -1,0 +1,2 @@
+27/10/2017
+  Embedding method can achieve at most 3.5 when card_range(2, 5) as well as card_range(2, 30)

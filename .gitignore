@@ -1,6 +1,12 @@
 # virtual env
 env/
 
+# tensorflow checkpoints
+temp/
+session/
+tensorboard/
+
+# temp file
 *.pyc
 *.swp
 *.log
