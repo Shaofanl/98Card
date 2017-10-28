@@ -1,4 +1,5 @@
 import numpy as np
+from itertools import product
 from copy import deepcopy
 
 
@@ -25,8 +26,10 @@ class Environment(object):
         self.punishment = punishment
         self.rewardcard = rewardcard
         self.nb_action_token = nb_hand*self.nb_pile
-        self.nb_state_token = cards_range[1]+1
+        self.nb_state_token = self.nb_card = cards_range[1]+1
         self.nb_state_len = nb_hand+self.nb_pile
+
+        self.all_actions = range(self.nb_pile*self.nb_hand)
 
         self.reset()
 
@@ -35,6 +38,7 @@ class Environment(object):
                               self.cards_range[1]+1)
         rng.shuffle(self.deck)
         self.nb_dealt = 0
+        self.piled = np.zeros((self.nb_card))
         self.nb_empty = self.nb_hand
 
         self.hand = [0 for i in range(self.nb_hand)]
@@ -51,6 +55,7 @@ class Environment(object):
             while self.nb_dealt < len(self.deck) and \
                   self.nb_empty > 0:
                 self.hand[self.hand.index(0)] = self.deck[self.nb_dealt]
+                self.piled[self.deck[self.nb_dealt]] = 1.0
                 self.nb_empty -= 1
                 self.nb_dealt += 1
         return self.hand
@@ -67,38 +72,37 @@ class Environment(object):
                 <0: Illegal actions
         '''
         if isinstance(action, int):
-            action = (action / self.nb_pile, action % self.nb_pile)
+            action = (action / self.nb_hand, action % self.nb_hand)
 
-        assert(0 <= action[0] <= self.nb_hand)
-        assert(0 <= action[1] <= self.nb_pile)
+        # print action
+        assert(0 <= action[0] < self.nb_pile)
+        assert(0 <= action[1] < self.nb_hand)
 
-        if self.hand[action[0]] == 0:
+        card = self.hand[action[1]]
+        top = self.piles[action[0]]
+        if card == 0:
             return self.punishment
 
-        card = self.hand[action[0]]
-        top = self.piles[action[1]]
-        if action[1] < self.nb_asc_pile:
+        if action[0] < self.nb_asc_pile:
             # asc pile
             if top == 0 or card > top or card == top-self.reverse_scale:
-                self.piles[action[1]] = card
+                self.piles[action[0]] = card
             else:
                 return self.punishment
         else:
             if top == 0 or card < top or card == top+self.reverse_scale:
-                self.piles[action[1]] = card
+                self.piles[action[0]] = card
             else:
                 return self.punishment
-        self.hand[action[0]] = 0
+        self.piled[card] = -1.0
+        self.hand[action[1]] = 0
         self.nb_empty += 1
         self.deal()
         return self.rewardcard
 
+    def possible_actions(self, s):
+        return self.all_actions
+
     @property
     def state(self):
-        '''
-            override this property to have different encoding
-
-            s range: [0, max_card_value]
-            a range: [0, nb_hand*nb_pile]
-        '''
-        return deepcopy(self.hand+self.piles)
+        return self.piled, self.piles, self.hand
