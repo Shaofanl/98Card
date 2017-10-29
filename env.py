@@ -45,6 +45,7 @@ class Environment(object):
         self.piles = [0 for i in range(self.nb_asc_pile+self.nb_des_pile)]
 
         self.deal()
+        self._next_fes = self.fesible_actions(self.state)
 
     def deal(self):
         # all cards are dealt
@@ -71,38 +72,80 @@ class Environment(object):
                 =0: All cards are served
                 <0: Illegal actions
         '''
-        if isinstance(action, int):
-            action = (action / self.nb_hand, action % self.nb_hand)
+        assert(action in self._next_fes)
+        action = (action / self.nb_hand, action % self.nb_hand)
 
         # print action
         assert(0 <= action[0] < self.nb_pile)
         assert(0 <= action[1] < self.nb_hand)
 
         card = self.hand[action[1]]
-        top = self.piles[action[0]]
-        if card == 0:
-            return self.punishment
+        # top = self.piles[action[0]]
 
-        if action[0] < self.nb_asc_pile:
-            # asc pile
-            if top == 0 or card > top or card == top-self.reverse_scale:
-                self.piles[action[0]] = card
-            else:
-                return self.punishment
-        else:
-            if top == 0 or card < top or card == top+self.reverse_scale:
-                self.piles[action[0]] = card
-            else:
-                return self.punishment
+        # if card == 0:
+        #     raise Exception
+        #     return self.punishment
+
+        # if action[0] < self.nb_asc_pile:
+        #     # asc pile
+        #     if top == 0 or card > top or card == top-self.reverse_scale:
+        #         self.piles[action[0]] = card
+        #     else:
+        #         raise Exception
+        #         return self.punishment
+        # else:
+        #     if top == 0 or card < top or card == top+self.reverse_scale:
+        #         self.piles[action[0]] = card
+        #     else:
+        #         raise Exception
+        #         return self.punishment
+
+        self.piles[action[0]] = card
         self.piled[card] = -1.0
         self.hand[action[1]] = 0
         self.nb_empty += 1
         self.deal()
+        self._next_fes = self.fesible_actions(self.state)
         return self.rewardcard
 
     def possible_actions(self, s):
         return self.all_actions
 
+    def fesible_actions(self, s):
+        _, piles, hand = s
+
+        acts = []
+        for p_ind, p in enumerate(piles):
+            for h_ind, h in enumerate(hand):
+                if h == 0:
+                    continue
+                if p_ind < self.nb_asc_pile:
+                    if p == 0 or h > p or h == p-self.reverse_scale:
+                        acts.append(p_ind*self.nb_hand+h_ind)
+                else:
+                    if p == 0 or h < p or h == p+self.reverse_scale:
+                        acts.append(p_ind*self.nb_hand+h_ind)
+        return np.array(acts)
+
     @property
     def state(self):
-        return self.piled, self.piles, self.hand
+        return deepcopy((self.piled, self.piles, self.hand))
+
+    def encode_length(self):
+        return (1+self.nb_pile+self.nb_hand)*self.nb_card
+
+    def encode(self, state=None):
+        if state is None:
+            return self.encode(self.state)
+        piled, piles, hand = state
+        res = np.zeros((self.nb_pile+self.nb_hand,
+                        self.nb_card))
+        ind = 0
+        for p in piles:
+            res[ind, p] = 1
+            ind += 1
+        for h in hand:
+            res[ind, h] = 1
+            ind += 1
+        feature = np.concatenate([piled, res.flatten()])
+        return feature

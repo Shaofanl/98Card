@@ -7,7 +7,7 @@ if __name__ == '__main__':
                       punishment=-1,
                       nb_hand=4,
                       nb_asc_pile=1,
-                      nb_des_pile=0)
+                      nb_des_pile=1)
     model = DQL(input_len=env.nb_state_len,
                 nb_state_token=env.nb_state_token,
                 nb_action_token=env.nb_action_token,
@@ -15,14 +15,14 @@ if __name__ == '__main__':
                 nb_pile=env.nb_pile,
                 nb_card=env.nb_card)
     model.build(
-                cells=[32, 64],
+                cells=[64, 128],
                 batch_size=64,
-                learning_rate=1e-3,
-                card_emb_dim=20,
+                learning_rate=1e-4,
+                card_emb_dim=50,
                 gamma=1.0)
     model.train(env,
                 iterations=500000,
-                epsilon=0.8,
+                epsilon=1.00,
                 epsilon_decay=1-1e-4,
-                epsilon_min=0.2,
-                max_exp=3000)
+                epsilon_min=0.1,
+                max_exp=100000)

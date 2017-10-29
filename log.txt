@@ -5,3 +5,7 @@
 
   I dont think this is possible.
   RNN and FNN fails to handle index input.
+28/10/2017
+  boundary handle:
+    1. filter when searching
+    2. don't change the state, give a negative reward
