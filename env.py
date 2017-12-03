@@ -111,6 +111,9 @@ class Environment(object):
     def possible_actions(self, s):
         return self.all_actions
 
+    def isfeasible(self, s):
+        _, piles, hand = s
+
     def fesible_actions(self, s):
         _, piles, hand = s
 

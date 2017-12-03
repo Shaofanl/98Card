@@ -22,19 +22,15 @@ class DQL(object):
         self.built = False
 
     def build(self,
-              cells=[256, 256],
-              basic_cell=rnn.LSTMCell,
-              card_emb_dim=50,
               batch_size=1,
               learning_rate=1e-4,
               clip_norm=1.,
               gamma=1.0):
         # cards (-1: piled, 0: not seen, 1: on hand)
-        state1 = tf.placeholder('float32', [None, self.nb_card], name='state1')
-        # piles
-        state2 = tf.placeholder('int32', [None, self.nb_pile], name='state2')
-        # hand
-        state3 = tf.placeholder('int32', [None, self.nb_hand], name='state3')
+        state = tf.placeholder('float32',
+                               [None,
+                                (1+self.nb_pile+self.nb_hand)*self.nb_card],
+                               name='state')
         # action replace (from A[0] to A[1])
         action = tf.placeholder('int32', [None], name='action')
         action_ind_one_hot = tf.one_hot(action,
@@ -43,29 +39,14 @@ class DQL(object):
         expected_qv = tf.placeholder('float32', [None],
                                      name='expected_qv')
 
-        # embeddings
-        # card_embW = self.get_preset_state_emb(self.nb_card, name='card_embW')
-        card_embW = tf.Variable(
-            tf.random_uniform([self.nb_card, card_emb_dim], -1.0, 1.0),
-            name='card_embW')
-        pile_emb = tf.nn.embedding_lookup(card_embW, state2)
-        hand_emb = tf.nn.embedding_lookup(card_embW, state3)
-
-        def DQN(pile_emb, hand_emb,
+        def DQN(state,
                 action_ind_one_hot,
                 expected_qv,
                 scope):
             with tf.variable_scope(scope):
-                encoder = rnn.MultiRNNCell([basic_cell(c) for c in cells])
-                pile_emb, _ = \
-                    tf.nn.dynamic_rnn(encoder, pile_emb, dtype=tf.float32)
-                hand_emb, _ = \
-                    tf.nn.dynamic_rnn(encoder, hand_emb, dtype=tf.float32)
-
-                joint = tf.concat([state1,
-                                   pile_emb[:, -1, :],
-                                   hand_emb[:, -1, :]], axis=-1)
-                x = layers.linear(joint, 1024)
+                x = layers.linear(state, 2048)
+                x = tf.nn.relu(x)
+                x = layers.linear(x, 1024)
                 x = tf.nn.relu(x)
                 x = layers.linear(x, 512)
                 x = tf.nn.relu(x)
@@ -86,17 +67,15 @@ class DQL(object):
                 train_op = tf.contrib.slim.learning.create_train_op(
                     loss, optimizer, clip_gradient_norm=clip_norm)
             return qvalue, qvalues, train_op, loss
-        dqn1 = DQN(pile_emb, hand_emb, action_ind_one_hot, expected_qv, 'dqn1')
-        dqn2 = DQN(pile_emb, hand_emb, action_ind_one_hot, expected_qv, 'dqn2')
+        dqn1 = DQN(state, action_ind_one_hot, expected_qv, 'dqn1')
+        dqn2 = DQN(state, action_ind_one_hot, expected_qv, 'dqn2')
 
         # enumerate every actions
         # max_qv = tf.reduce_max(qvalues, 1)
         # max_qv_ind = tf.argmax(qvalues, 1)
 
         # inputs
-        self.state1 = state1
-        self.state2 = state2
-        self.state3 = state3
+        self.state = state
         self.action = action
         self.expected_qv = expected_qv
 
@@ -154,9 +133,7 @@ class DQL(object):
                         a = fes_a[rng.choice(len(fes_a))]
                         # a = pos_acts[rng.choice(len(pos_acts))]
                     else:
-                        feed_dict = {self.state1: [s[0]],
-                                     self.state2: [s[1]],
-                                     self.state3: [s[2]]}
+                        feed_dict = {self.state: [env.encode(s)]}
                         all_qv = sess.run(self.qvalues[self.rand_dqn],
                                           feed_dict=feed_dict)
                         a = self.findmax(all_qv[0], fes_a)
@@ -175,18 +152,12 @@ class DQL(object):
                     batch_q = []
                     batch_ind = np.random.choice(len(exp),
                                                  size=(self.batch_size,))
-                    batch_s1 = [exp[j][3][0] for j in batch_ind]
-                    batch_s2 = [exp[j][3][1] for j in batch_ind]
-                    batch_s3 = [exp[j][3][2] for j in batch_ind]
+                    batch_s = [env.encode(exp[j][3]) for j in batch_ind]
                     estimate_dqn_ind = self.rand_dqn
                     trained_dqn_ind = 1-estimate_dqn_ind
                     batch_all_qv = sess.run(self.qvalues[estimate_dqn_ind],
-                                            feed_dict={self.state1: batch_s1,
-                                                       self.state2: batch_s2,
-                                                       self.state3: batch_s3})
-                    batch_s1 = []
-                    batch_s2 = []
-                    batch_s3 = []
+                                            feed_dict={self.state: batch_s})
+                    batch_s = []
                     for ind, exp_ind in enumerate(batch_ind):
                         s, a, r, s_next, teriminated = exp[exp_ind]
                         if teriminated:
@@ -195,14 +166,10 @@ class DQL(object):
                             fes_a = env.fesible_actions(s_next)
                             a = self.findmax(batch_all_qv[ind], fes_a)
                             exp_pv = r + self.gamma*batch_all_qv[ind, a]
-                        batch_s1.append(s[0])
-                        batch_s2.append(s[1])
-                        batch_s3.append(s[2])
+                        batch_s.append(env.encode(s))
                         batch_a.append(a)
                         batch_q.append(exp_pv)
-                    feed_dict = {self.state1: batch_s1,
-                                 self.state2: batch_s2,
-                                 self.state3: batch_s3,
+                    feed_dict = {self.state: batch_s,
                                  self.action: batch_a,
                                  self.expected_qv: batch_q}
                     sess.run(self.train_op[trained_dqn_ind],
